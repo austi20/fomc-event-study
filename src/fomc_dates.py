@@ -1,0 +1,145 @@
+"""Assemble FOMC statement-release dates into a clean event table.
+
+Source: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+
+Two-day meetings release the statement on the SECOND day. Getting this wrong is
+the most common error in student event studies.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+EVENTS_CSV = DATA_DIR / "events.csv"
+
+COLUMNS = ["date", "meeting_type", "is_press_conference"]
+
+# Statement-release date for every FOMC meeting, 2015 through the most recent
+# completed meeting. Two-day meetings are recorded on their SECOND day, since
+# that is when the statement actually goes out. Source: the Fed's own meeting
+# calendars (federalreserve.gov/monetarypolicy/fomccalendars.htm and the
+# per-year fomchistorical*.htm archive pages), cross-checked meeting by
+# meeting against the press-conference schedule.
+#
+# Excluded on purpose (not meeting/rate statements): the Oct 2019 unscheduled
+# call on repo-market operations (technical, explicitly not a policy-stance
+# change), and the Aug 2020 / Aug 2025 "Statement on Longer-Run Goals and
+# Monetary Policy Strategy" framework releases.
+_MEETINGS: list[tuple[str, str, bool]] = [
+    ("2015-01-28", "scheduled", False),
+    ("2015-03-18", "scheduled", True),
+    ("2015-04-29", "scheduled", False),
+    ("2015-06-17", "scheduled", True),
+    ("2015-07-29", "scheduled", False),
+    ("2015-09-17", "scheduled", True),
+    ("2015-10-28", "scheduled", False),
+    ("2015-12-16", "scheduled", True),
+    ("2016-01-27", "scheduled", False),
+    ("2016-03-16", "scheduled", True),
+    ("2016-04-27", "scheduled", False),
+    ("2016-06-15", "scheduled", True),
+    ("2016-07-27", "scheduled", False),
+    ("2016-09-21", "scheduled", True),
+    ("2016-11-02", "scheduled", False),
+    ("2016-12-14", "scheduled", True),
+    ("2017-02-01", "scheduled", False),
+    ("2017-03-15", "scheduled", True),
+    ("2017-05-03", "scheduled", False),
+    ("2017-06-14", "scheduled", True),
+    ("2017-07-26", "scheduled", False),
+    ("2017-09-20", "scheduled", True),
+    ("2017-11-01", "scheduled", False),
+    ("2017-12-13", "scheduled", True),
+    ("2018-01-31", "scheduled", False),
+    ("2018-03-21", "scheduled", True),
+    ("2018-05-02", "scheduled", False),
+    ("2018-06-13", "scheduled", True),
+    ("2018-08-01", "scheduled", False),
+    ("2018-09-26", "scheduled", True),
+    ("2018-11-08", "scheduled", False),
+    ("2018-12-19", "scheduled", True),
+    ("2019-01-30", "scheduled", True),
+    ("2019-03-20", "scheduled", True),
+    ("2019-05-01", "scheduled", True),
+    ("2019-06-19", "scheduled", True),
+    ("2019-07-31", "scheduled", True),
+    ("2019-09-18", "scheduled", True),
+    ("2019-10-30", "scheduled", True),
+    ("2019-12-11", "scheduled", True),
+    ("2020-01-29", "scheduled", True),
+    ("2020-03-03", "unscheduled", True),
+    ("2020-03-15", "unscheduled", True),
+    ("2020-04-29", "scheduled", True),
+    ("2020-06-10", "scheduled", True),
+    ("2020-07-29", "scheduled", True),
+    ("2020-09-16", "scheduled", True),
+    ("2020-11-05", "scheduled", True),
+    ("2020-12-16", "scheduled", True),
+    ("2021-01-27", "scheduled", True),
+    ("2021-03-17", "scheduled", True),
+    ("2021-04-28", "scheduled", True),
+    ("2021-06-16", "scheduled", True),
+    ("2021-07-28", "scheduled", True),
+    ("2021-09-22", "scheduled", True),
+    ("2021-11-03", "scheduled", True),
+    ("2021-12-15", "scheduled", True),
+    ("2022-01-26", "scheduled", True),
+    ("2022-03-16", "scheduled", True),
+    ("2022-05-04", "scheduled", True),
+    ("2022-06-15", "scheduled", True),
+    ("2022-07-27", "scheduled", True),
+    ("2022-09-21", "scheduled", True),
+    ("2022-11-02", "scheduled", True),
+    ("2022-12-14", "scheduled", True),
+    ("2023-02-01", "scheduled", True),
+    ("2023-03-22", "scheduled", True),
+    ("2023-05-03", "scheduled", True),
+    ("2023-06-14", "scheduled", True),
+    ("2023-07-26", "scheduled", True),
+    ("2023-09-20", "scheduled", True),
+    ("2023-11-01", "scheduled", True),
+    ("2023-12-13", "scheduled", True),
+    ("2024-01-31", "scheduled", True),
+    ("2024-03-20", "scheduled", True),
+    ("2024-05-01", "scheduled", True),
+    ("2024-06-12", "scheduled", True),
+    ("2024-07-31", "scheduled", True),
+    ("2024-09-18", "scheduled", True),
+    ("2024-11-07", "scheduled", True),
+    ("2024-12-18", "scheduled", True),
+    ("2025-01-29", "scheduled", True),
+    ("2025-03-19", "scheduled", True),
+    ("2025-05-07", "scheduled", True),
+    ("2025-06-18", "scheduled", True),
+    ("2025-07-30", "scheduled", True),
+    ("2025-09-17", "scheduled", True),
+    ("2025-10-29", "scheduled", True),
+    ("2025-12-10", "scheduled", True),
+    ("2026-01-28", "scheduled", True),
+    ("2026-03-18", "scheduled", True),
+    ("2026-04-29", "scheduled", True),
+    ("2026-06-17", "scheduled", True),
+    ("2026-07-29", "scheduled", True),
+]
+
+
+def build_events(start_year: int = 2015) -> pd.DataFrame:
+    """Return one row per statement release: date, meeting_type, is_press_conference.
+
+    meeting_type is 'scheduled' or 'unscheduled'. Unscheduled intermeeting
+    actions (2020 is the obvious case) are flagged, not dropped.
+    """
+    df = pd.DataFrame(_MEETINGS, columns=COLUMNS)
+    return df[df["date"] >= f"{start_year}-01-01"].reset_index(drop=True)
+
+
+def save_events(df: pd.DataFrame, path: Path = EVENTS_CSV) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.loc[:, COLUMNS].to_csv(path, index=False)
+
+
+if __name__ == "__main__":
+    save_events(build_events())
