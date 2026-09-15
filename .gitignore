@@ -1,7 +1,6 @@
 # Data
 data/raw/
 data/processed/
-*.parquet
 
 # Python
 __pycache__/

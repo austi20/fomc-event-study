@@ -17,17 +17,8 @@ EVENTS_CSV = DATA_DIR / "events.csv"
 
 COLUMNS = ["date", "meeting_type", "is_press_conference"]
 
-# Statement-release date for every FOMC meeting, 2015 through the most recent
-# completed meeting. Two-day meetings are recorded on their SECOND day, since
-# that is when the statement actually goes out. Source: the Fed's own meeting
-# calendars (federalreserve.gov/monetarypolicy/fomccalendars.htm and the
-# per-year fomchistorical*.htm archive pages), cross-checked meeting by
-# meeting against the press-conference schedule.
-#
-# Excluded on purpose (not meeting/rate statements): the Oct 2019 unscheduled
-# call on repo-market operations (technical, explicitly not a policy-stance
-# change), and the Aug 2020 / Aug 2025 "Statement on Longer-Run Goals and
-# Monetary Policy Strategy" framework releases.
+# excluded (not rate/meeting statements): Oct 2019 repo-ops call (technical,
+# not a policy-stance change); Aug 2020 / Aug 2025 "Longer-Run Goals" framework releases
 _MEETINGS: list[tuple[str, str, bool]] = [
     ("2015-01-28", "scheduled", False),
     ("2015-03-18", "scheduled", True),
