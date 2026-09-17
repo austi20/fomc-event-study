@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yfinance as yf
 
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 PRICES_CACHE = RAW_DIR / "prices.parquet"
@@ -18,8 +19,6 @@ def fetch_prices(tickers: list[str] = TICKERS, start: str = START) -> pd.DataFra
     """Adjusted closes from yfinance, cached to data/raw/ on first fetch."""
     if PRICES_CACHE.exists():
         return pd.read_parquet(PRICES_CACHE)
-
-    import yfinance as yf  # lazy: only needed on a cache miss
 
     prices = yf.download(tickers, start=start, auto_adjust=True, progress=False)["Close"]
     RAW_DIR.mkdir(parents=True, exist_ok=True)

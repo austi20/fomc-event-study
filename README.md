@@ -1,56 +1,80 @@
 # FOMC Announcement Event Study
 
-An event study testing whether rate-sensitive equity sectors earn abnormal returns
-around FOMC policy statement releases, and whether the effect is larger for regional
-banks (`KRE`) than for the broad market (`SPY`).
+[![tests](https://github.com/austi20/fomc-event-study/actions/workflows/tests.yml/badge.svg)](https://github.com/austi20/fomc-event-study/actions/workflows/tests.yml)
 
-**Headline result:** across 94 FOMC statement releases (2015-2026), long-duration
-Treasuries (`TLT`) show a mean abnormal return of **+0.30%** on the announcement day
-itself (95% bootstrap CI **[0.13%, 0.47%]**, t-test p = 0.001) - the one effect in
-this study that survives both the t-test and the bootstrap. The hypothesized
-regional-bank effect did not: KRE's mean 3-day CAR is -0.42% vs. SPY's -0.03%, and
-the 95% bootstrap CI for that difference is **[-1.08%, +0.27%]**, comfortably
-including zero.
+When the Fed releases a policy statement, does the market move in a way you can
+actually measure? I tested that on 94 FOMC statement releases from January 2015
+through July 2026 across four ETFs, using a market model event study.
 
-**Method:** market-model event study. For each ticker and event, alpha/beta are
-estimated over a `[t-250, t-30]` pre-event window (SPY itself uses a constant-mean
-model rather than being regressed on itself). Abnormal returns are then computed
-over a `[-1, +1]` event window and aggregated into average abnormal return (AAR)
-and cumulative abnormal return (CAR). Significance is assessed with both a t-test
-and a seeded 10,000-resample bootstrap.
+**What I found.** Long dated Treasuries react, stocks mostly do not. TLT earns an
+average abnormal return of **+0.30%** on the release day itself, with a 95%
+bootstrap confidence interval of **[0.13%, 0.47%]** and a t test p value of
+0.001. It is the only result in the study that the t test and the bootstrap both
+agree on.
 
-## Timeline
+**What I expected and did not get.** I went in thinking regional banks would be
+the story. They borrow short and lend long, so they should be the most rate
+sensitive corner of the equity market. They were not. KRE averages a three day
+cumulative abnormal return of -0.42% against SPY's -0.03%, and the bootstrap
+interval on that difference runs from **-1.08% to +0.27%**. It contains zero, so
+I cannot say the two are different. I am reporting the null result because that
+is the answer the data gave, and a null result I can defend is worth more than a
+significant one I cannot.
 
-| Session | Date | Scope | Status |
+## The numbers
+
+![Average abnormal return by event day offset, per ticker, with 95% bootstrap confidence bands](figures/aar_by_offset.png)
+
+![Distribution of cumulative abnormal return per event, per ticker, with the mean and 95% bootstrap interval marked](figures/car_distribution.png)
+
+Release day only, one row per ticker:
+
+| Ticker | Average abnormal return | 95% bootstrap CI | t test p |
 |---|---|---|---|
-| 1 | Sep 15, 2026 | Assemble the FOMC event table | Done |
-| 2 | Sep 15, 2026 | Market model + abnormal returns | Done |
-| 3 | Sep 17, 2026 | Inference, figures, write-up | Done |
+| TLT | +0.30% | [0.13%, 0.47%] | 0.001 |
+| XLF | -0.15% | [-0.30%, -0.003%] | 0.059 |
+| KRE | -0.20% | [-0.55%, 0.13%] | 0.263 |
+| SPY | -0.15% | [-0.51%, 0.16%] | 0.381 |
 
-## Data
+XLF is worth a second look, because the two methods disagree about it. The
+bootstrap interval stops just short of zero at [-0.30%, -0.003%], which reads
+like a real effect. The t test puts it at p = 0.059, which does not clear the
+usual 0.05 bar. Both answers are sitting on the line, so I am not claiming it.
 
-- `data/events.csv` - 94 FOMC statement-release dates, 2015 through the most recent
-  completed meeting. Two-day meetings use the second (statement) day; the March 2020
-  emergency actions are flagged `unscheduled` rather than dropped.
-- `data/abnormal_returns.parquet` - one row per (ticker, event, offset): 1,128 rows
-  across SPY, KRE, XLF, TLT.
-- `data/aar_by_offset.csv` - average abnormal return by ticker and offset.
+## How it works
 
-## Repo layout
+For every ticker and every event, alpha and beta come from a market model fit on
+the 221 trading days from `t-250` to `t-30`, far enough back that the
+announcement itself is not in the training data. Abnormal return is then the
+actual return minus what that model predicted, computed across a `[-1, +1]`
+window around the release.
 
-```
-src/
-  fomc_dates.py    # event table (Session 1)
-  returns.py       # price fetch/cache + log returns (Session 2)
-  event_study.py   # market model, abnormal returns, AAR/CAR (Session 2)
-  inference.py     # significance tests, bootstrap CIs (Session 3)
-  plots.py         # figures (Session 3)
-tests/             # pytest suite, written alongside each module
-data/              # events.csv, abnormal_returns.parquet, aar_by_offset.csv
-notebooks/         # end-to-end analysis notebook (Session 3)
-```
+SPY is the market here, so regressing it on itself would be meaningless. It gets
+a constant mean model instead.
 
-## Setup
+From there the abnormal returns aggregate two ways. AAR is the average across
+all 94 events at a single offset, which is what the first figure plots. CAR sums
+the three days of the window for one event, which is what the second figure
+distributes. Significance comes from a t test and a percentile bootstrap of
+10,000 resamples with a fixed seed, so the intervals reproduce exactly.
+
+## The data
+
+`data/events.csv` holds the 94 statement release dates, which I assembled by
+hand from the Fed's published
+[FOMC calendar](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm).
+Two things there are easy to get wrong and both are handled. Two day meetings
+release the statement on the second day, not the first. The March 2020 emergency
+intermeeting cuts are real statement releases, so they are flagged as
+`unscheduled` rather than quietly dropped, and one of them landed on a Sunday
+and rolls forward to the next trading day.
+
+Prices are daily adjusted closes for SPY, KRE, XLF and TLT from `yfinance`,
+cached to `data/raw/` on first run. `data/abnormal_returns.parquet` is the
+output, one row per ticker, event and offset, committed so anyone can check the
+numbers without hitting the API.
+
+## Running it
 
 ```bash
 pip install -r requirements.txt
@@ -58,45 +82,48 @@ pytest
 jupyter nbconvert --to notebook --execute --inplace notebooks/01_event_study.ipynb
 ```
 
-The notebook re-derives everything from `data/events.csv` and the cached prices in
-`data/raw/` (re-downloaded via `yfinance` on a cache miss), runs the t-tests and
-bootstrap CIs, and regenerates both figures below.
+The notebook rebuilds every number and both figures from the event table and the
+price cache. Nothing in it reads a precomputed result.
 
-## Results
+```
+src/
+  fomc_dates.py    # the event table
+  returns.py       # price download, cache, log returns
+  event_study.py   # market model, abnormal returns, AAR and CAR
+  inference.py     # t tests and bootstrap intervals
+  plots.py         # the two figures
+tests/             # 30 pytest cases
+notebooks/         # the analysis, start to finish
+```
 
-![AAR by event-day offset, per ticker, with 95% bootstrap CI bands](figures/aar_by_offset.png)
+## What would break this
 
-![Distribution of per-event CAR, per ticker, with mean and 95% bootstrap CI marked](figures/car_distribution.png)
+- **Overlapping estimation windows.** FOMC meetings sit about six weeks apart
+  and the estimation window is 221 trading days, so one event's window covers
+  several of its neighbors. The alphas and betas are not estimated from
+  independent samples, which means their real sampling variance is wider than
+  these numbers imply.
+- **Volatility clustering.** Daily returns are not i.i.d. Volatile days arrive
+  in clusters, so standard errors from both methods run small in exactly the
+  stretches where returns are largest. The bootstrap resamples whole events
+  rather than days inside an event, so it does not solve this either.
+- **2020.** Two of the 94 events are the emergency cuts in March 2020. KRE
+  averages -1.72% on those two against -0.39% on the other 92. With n = 2 that
+  is an anecdote rather than a subgroup, but it is large enough to pull the full
+  sample average.
+- **Multiple testing.** I ran 12 t tests, one per ticker and offset, plus the
+  KRE against SPY comparison, with no correction applied. At an uncorrected 0.05
+  threshold about one apparent hit in 12 turns up by luck alone. TLT at p = 0.001
+  clears a Bonferroni threshold anyway. XLF at p = 0.059 clears nothing.
 
-| Ticker | Offset-0 AAR | 95% bootstrap CI | t-test p |
-|---|---|---|---|
-| TLT | +0.30% | [0.13%, 0.47%] | 0.001 |
-| XLF | -0.15% | [-0.30%, -0.003%] | 0.059 |
-| KRE | -0.20% | [-0.55%, 0.13%] | 0.263 |
-| SPY | -0.15% | [-0.51%, 0.16%] | 0.381 |
+## What I would do next
 
-Only TLT's announcement-day reaction survives both the t-test and the bootstrap.
-The headline comparison - KRE's mean 3-day CAR (-0.42%) vs. SPY's (-0.03%) - has a
-95% bootstrap CI of **[-1.08%, +0.27%]** on the difference, which includes zero: no
-evidence here that regional banks react more than the broad market. That null
-result is itself the finding - see Limitations for why 94 events isn't a lot of
-independent evidence either way.
+Widen the event window past three days and see whether the KRE effect shows up
+slower than I assumed. Split the sample by whether the decision surprised the
+market, using fed funds futures to measure the surprise, since pooling hikes,
+cuts and holds together averages real reactions toward zero. Both are bigger
+jobs than this one was.
 
-## Limitations
+## License
 
-- **Overlapping estimation windows.** FOMC meetings are ~6 weeks apart; the
-  220-day estimation window for one event overlaps the event window of several
-  neighbors, so alpha/beta draw on data that isn't independent across events.
-- **Volatility clustering.** Daily returns are not i.i.d. - volatility is
-  autocorrelated, so t-test and bootstrap standard errors are understated during
-  volatile stretches. The bootstrap resamples across events, not within an
-  event's time series, so it doesn't correct for this on its own.
-- **2020 outliers.** 2 of the 94 events are unscheduled emergency actions in
-  March 2020. KRE's mean CAR on those two (-1.72%) is ~4x more negative than on
-  the other 92 (-0.39%) - a small enough n to be a data point rather than a
-  subgroup estimate, but large enough to pull the full-sample mean.
-- **Multiple testing.** 12 (ticker x offset) t-tests plus the KRE-vs-SPY
-  comparison ran with no multiple-comparison correction. At uncorrected alpha=0.05,
-  ~1 nominal "significant" result among 12 is expected by chance; TLT's result
-  clears even a Bonferroni correction, but XLF's (p approx. 0.06) would not survive
-  any correction and should be read as suggestive only.
+MIT.
