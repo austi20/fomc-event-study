@@ -83,7 +83,9 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_event_study.ipy
 ```
 
 The notebook rebuilds every number and both figures from the event table and the
-price cache. Nothing in it reads a precomputed result.
+price cache. Nothing in it reads a precomputed result. If you would rather just
+read it, GitHub renders it with the output already in place:
+[notebooks/01_event_study.ipynb](notebooks/01_event_study.ipynb).
 
 ```
 src/
