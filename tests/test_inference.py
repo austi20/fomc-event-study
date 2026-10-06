@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.inference import bootstrap_ci, diff_in_means_ci, ttest_aar
+from src.inference import bootstrap_ci, diff_in_means_ci, release_day_summary, ttest_aar
 
 
 def test_ttest_aar_one_row_per_ticker_offset():
@@ -68,7 +68,7 @@ def test_bootstrap_ci_contains_the_sample_mean():
 def test_bootstrap_ci_excludes_zero_for_a_strong_effect():
     rng = np.random.default_rng(2)
     values = rng.normal(0.05, 0.005, 300)
-    lo, hi = bootstrap_ci(values)
+    lo, _ = bootstrap_ci(values)
     assert lo > 0
 
 
@@ -85,3 +85,36 @@ def test_diff_in_means_ci_centered_on_observed_difference():
     assert lo < (a.mean() - b.mean()) < hi
     # a is drawn with a clearly larger mean than b, so the CI should exclude 0.
     assert lo > 0
+
+
+def _day_rows():
+    return pd.DataFrame(
+        {
+            "ticker": ["TLT", "TLT", "TLT", "TLT", "TLT", "TLT"],
+            "decision": ["hike", "hike", "cut", "cut", "hike", "cut"],
+            "offset": [0, 0, 0, 0, 1, 1],
+            "return": [0.02, 0.04, -0.01, -0.03, 0.5, 0.5],
+            "abnormal_return": [0.01, 0.03, -0.02, -0.04, 0.5, 0.5],
+        }
+    )
+
+
+def test_release_day_summary_uses_only_offset_zero():
+    result = release_day_summary(_day_rows(), ["ticker"])
+    assert len(result) == 1
+    assert result.loc[0, "n"] == 4
+    assert result.loc[0, "mean"] == pytest.approx(-0.005)
+
+
+def test_release_day_summary_splits_by_decision():
+    result = release_day_summary(_day_rows(), ["decision", "ticker"]).set_index("decision")
+    assert result.loc["hike", "mean"] == pytest.approx(0.02)
+    assert result.loc["cut", "mean"] == pytest.approx(-0.03)
+    assert result.loc["hike", "ci_lo"] <= 0.02 <= result.loc["hike", "ci_hi"]
+
+
+def test_release_day_summary_can_use_raw_returns():
+    result = release_day_summary(_day_rows(), ["decision", "ticker"], value_col="return")
+    by_decision = result.set_index("decision")["mean"]
+    assert by_decision["hike"] == pytest.approx(0.03)
+    assert by_decision["cut"] == pytest.approx(-0.02)

@@ -1,4 +1,4 @@
-"""Tests for the event-study math. Keep these cheap and deterministic."""
+"""Tests for the event study math. Keep these cheap and deterministic."""
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ def test_market_model_recovers_known_alpha_beta():
 
 
 def _synthetic_returns(n_days=400):
-    """SPY and KRE returns with a known, noise-free market-model relationship."""
+    """SPY and KRE returns with a known, noise free market model relationship."""
     rng = np.random.default_rng(1)
     dates = pd.bdate_range("2020-01-01", periods=n_days)
     spy = rng.normal(0, 0.01, n_days)
@@ -35,8 +35,8 @@ def _synthetic_returns(n_days=400):
 
 
 def test_abnormal_return_is_zero_when_regression_model_is_exact():
-    # KRE is an exact linear function of SPY, so its market-model AR is ~0.
-    # SPY itself uses a constant-mean model, so its own AR need not be zero.
+    # KRE is an exact linear function of SPY, so its market model AR is ~0.
+    # SPY itself uses a constant mean model, so its own AR need not be zero.
     returns = _synthetic_returns()
     events = pd.DataFrame({"date": [returns.index[300]]})
     ar = abnormal_returns(returns, events)
@@ -117,3 +117,29 @@ def test_aar_by_offset_averages_across_events():
     )
     aar = aar_by_offset(ar).set_index(["ticker", "offset"])["aar"]
     assert aar[("KRE", 0)] == pytest.approx(0.04)
+
+
+def test_abnormal_returns_records_alpha_and_beta():
+    returns = _synthetic_returns()
+    events = pd.DataFrame({"date": [returns.index[300]]})
+    ar = abnormal_returns(returns, events)
+    kre = ar[ar["ticker"] == "KRE"]
+    spy = ar[ar["ticker"] == MARKET_TICKER]
+    assert np.allclose(kre["beta"], 1.5)
+    assert np.allclose(kre["alpha"], 0.0002)
+    assert (spy["beta"] == 0.0).all()
+
+
+def test_market_ticker_can_be_a_bond_index():
+    # TLT is exactly 3x AGG here, so against AGG its AR is ~0.
+    rng = np.random.default_rng(2)
+    dates = pd.bdate_range("2020-01-01", periods=400)
+    agg = rng.normal(0, 0.003, 400)
+    returns = pd.DataFrame({"AGG": agg, "TLT": 3 * agg}, index=dates)
+    events = pd.DataFrame({"date": [dates[300]]})
+
+    ar = abnormal_returns(returns, events, market_ticker="AGG")
+    tlt = ar[ar["ticker"] == "TLT"]
+    assert np.allclose(tlt["abnormal_return"], 0, atol=1e-10)
+    assert np.allclose(tlt["beta"], 3.0)
+    assert (ar[ar["ticker"] == "AGG"]["beta"] == 0.0).all()

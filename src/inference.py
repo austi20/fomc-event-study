@@ -14,7 +14,7 @@ N_BOOT = 10_000
 
 
 def ttest_aar(ar: pd.DataFrame) -> pd.DataFrame:
-    """One-sample t-test of AAR != 0 at each (ticker, offset)."""
+    """One sample t test of AAR != 0 at each (ticker, offset)."""
     rows = []
     for (ticker, offset), group in ar.groupby(["ticker", "offset"]):
         values = group["abnormal_return"].to_numpy()
@@ -44,6 +44,29 @@ def bootstrap_ci(values: np.ndarray, n_boot: int = N_BOOT, seed: int = SEED) -> 
 
     lo, hi = np.percentile(means, [2.5, 97.5])
     return float(lo), float(hi)
+
+
+def release_day_summary(
+    ar: pd.DataFrame, by: list[str], value_col: str = "abnormal_return"
+) -> pd.DataFrame:
+    """Release day (offset 0) mean, bootstrap CI and t test p, one row per group."""
+    release_day = ar[ar["offset"] == 0]
+    rows = []
+    for keys, group in release_day.groupby(by):
+        values = group[value_col].to_numpy()
+        lo, hi = bootstrap_ci(values)
+        row = dict(zip(by, keys))
+        row.update(
+            {
+                "n": len(values),
+                "mean": values.mean(),
+                "ci_lo": lo,
+                "ci_hi": hi,
+                "p_value": stats.ttest_1samp(values, 0.0).pvalue,
+            }
+        )
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def diff_in_means_ci(

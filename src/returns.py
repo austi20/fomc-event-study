@@ -11,7 +11,8 @@ import yfinance as yf
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
 PRICES_CACHE = RAW_DIR / "prices.parquet"
 
-TICKERS = ["SPY", "KRE", "XLF", "TLT"]
+# AGG is the bond market benchmark for TLT
+TICKERS = ["SPY", "KRE", "XLF", "TLT", "AGG"]
 START = "2014-01-01"
 
 

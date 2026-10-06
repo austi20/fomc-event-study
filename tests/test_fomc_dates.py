@@ -60,3 +60,22 @@ def test_press_conference_not_every_meeting_before_2019(events):
     pre_2019 = events[events["date"] < "2019-01-01"]
     assert not pre_2019["is_press_conference"].all()
     assert pre_2019["is_press_conference"].any()
+
+
+def test_decision_is_hike_cut_or_hold(events):
+    assert set(events["decision"]) == {"hike", "cut", "hold"}
+
+
+def test_decision_counts(events):
+    counts = events["decision"].value_counts()
+    assert counts["hike"] == 20
+    assert counts["cut"] == 11
+    assert counts["hold"] == 63
+
+
+def test_known_decisions(events):
+    by_date = events.set_index("date")["decision"]
+    assert by_date["2015-12-16"] == "hike"
+    assert by_date["2019-07-31"] == "cut"
+    assert by_date["2020-03-15"] == "cut"
+    assert by_date["2023-06-14"] == "hold"

@@ -1,4 +1,4 @@
-"""Tests for price fetching/caching and log-return conversion."""
+"""Tests for price fetching, caching and log return conversion."""
 
 import numpy as np
 import pandas as pd
